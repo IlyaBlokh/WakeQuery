@@ -1,0 +1,16 @@
+{
+  "name": "WakeQuery.Samples.Basic",
+  "rootNamespace": "WakeQuery.Samples.Basic",
+  "references": [
+    "WakeQuery.Core"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

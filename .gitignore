@@ -1,0 +1,17 @@
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+Logs/
+UserSettings/
+.idea/
+.vs/
+*.csproj.user
+TestResults/
+DotNet/.artifacts~/
+.ci/UnityProject/ProjectSettings/*
+!.ci/UnityProject/ProjectSettings/ProjectVersion.txt
+.ci/UnityProject/Packages/packages-lock.json
+.ci/UnityProject/Assets/Generated/
+.ci/UnityProject/Assets/Generated.meta

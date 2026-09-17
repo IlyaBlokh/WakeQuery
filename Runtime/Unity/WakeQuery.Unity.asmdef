@@ -1,0 +1,16 @@
+{
+  "name": "WakeQuery.Unity",
+  "rootNamespace": "WakeQuery.Unity",
+  "references": [
+    "WakeQuery.Core"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

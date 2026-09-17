@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>.artifacts~/obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>.artifacts~/obj/$(MSBuildProjectName)/</MSBuildProjectExtensionsPath>
+    <OutputPath>.artifacts~/bin/$(MSBuildProjectName)/</OutputPath>
+  </PropertyGroup>
+</Project>

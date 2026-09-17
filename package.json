@@ -1,0 +1,25 @@
+{
+  "name": "com.wakequery.core",
+  "version": "0.1.0",
+  "displayName": "WakeQuery",
+  "description": "A transport-neutral server-state cache and query lifecycle engine for Unity.",
+  "unity": "2022.3",
+  "author": {
+    "name": "WakeQuery Contributors"
+  },
+  "license": "MIT",
+  "keywords": [
+    "query",
+    "cache",
+    "server-state",
+    "async",
+    "lifecycle"
+  ],
+  "samples": [
+    {
+      "displayName": "Basic Usage",
+      "description": "Framework-neutral query and mutation examples.",
+      "path": "Samples~/Basic"
+    }
+  ]
+}

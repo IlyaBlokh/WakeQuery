@@ -1,0 +1,22 @@
+{
+  "name": "WakeQuery.Unity.Tests",
+  "rootNamespace": "WakeQuery.Unity.Tests",
+  "references": [
+    "WakeQuery.Core",
+    "WakeQuery.Unity"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}
