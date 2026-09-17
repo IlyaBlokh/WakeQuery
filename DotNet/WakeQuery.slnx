@@ -3,4 +3,5 @@
   <Project Path="WakeQuery.Samples.Basic.csproj" />
   <Project Path="WakeQuery.Testing.csproj" />
   <Project Path="WakeQuery.Tests.csproj" />
+  <Project Path="WakeQuery.Unity.Docs.csproj" />
 </Solution>

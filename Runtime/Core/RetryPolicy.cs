@@ -2,6 +2,13 @@ using System;
 
 namespace WakeQuery
 {
+    /// <summary>
+    /// Controls how failed query fetches are retried.
+    /// </summary>
+    /// <remarks>
+    /// Retry delays are scheduled on the client's runtime clock, not with <c>Task.Delay</c>, so they are deterministic
+    /// under <c>ManualQueryRuntime</c>. Mutations are never retried.
+    /// </remarks>
     public sealed class RetryPolicy
     {
         private enum DelayKind
@@ -27,6 +34,7 @@ namespace WakeQuery
 
         private readonly DelayKind _delayKind;
 
+        /// <summary>Gets a policy that makes a single attempt and never retries. This is the default.</summary>
         public static RetryPolicy None { get; } = new(
             1,
             TimeSpan.Zero,
@@ -34,6 +42,7 @@ namespace WakeQuery
             null,
             DelayKind.None);
 
+        /// <summary>Gets the maximum number of attempts, including the first one.</summary>
         public int MaxAttempts { get; }
 
         internal TimeSpan InitialDelay { get; }
@@ -42,6 +51,16 @@ namespace WakeQuery
 
         internal Func<Exception, bool> ShouldRetry { get; }
 
+        /// <summary>Creates a policy that waits the same delay before every retry.</summary>
+        /// <param name="maxAttempts">The maximum number of attempts, including the first one. Must be at least 1.</param>
+        /// <param name="delay">The delay before each retry. Must not be negative.</param>
+        /// <param name="shouldRetry">
+        /// Optional predicate that decides whether a failure is retried. When <see langword="null"/>, every failure is retried.
+        /// </param>
+        /// <returns>The policy.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// <paramref name="maxAttempts"/> is less than 1, or <paramref name="delay"/> is negative.
+        /// </exception>
         public static RetryPolicy Fixed(
             int maxAttempts,
             TimeSpan delay,
@@ -56,6 +75,21 @@ namespace WakeQuery
                 DelayKind.Fixed);
         }
 
+        /// <summary>Creates a policy whose delay doubles after each failed attempt.</summary>
+        /// <param name="maxAttempts">The maximum number of attempts, including the first one. Must be at least 1.</param>
+        /// <param name="initialDelay">The delay before the first retry. Must not be negative.</param>
+        /// <param name="maximumDelay">The upper bound for any delay, or <see langword="null"/> for no bound.</param>
+        /// <param name="shouldRetry">
+        /// Optional predicate that decides whether a failure is retried. When <see langword="null"/>, every failure is retried.
+        /// </param>
+        /// <returns>The policy.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// <paramref name="maxAttempts"/> is less than 1, <paramref name="initialDelay"/> is negative,
+        /// or <paramref name="maximumDelay"/> is less than <paramref name="initialDelay"/>.
+        /// </exception>
+        /// <example>
+        /// With <c>initialDelay</c> = 1s and <c>maximumDelay</c> = 8s, retries wait 1s, 2s, 4s, 8s, 8s, and so on.
+        /// </example>
         public static RetryPolicy Exponential(
             int maxAttempts,
             TimeSpan initialDelay,

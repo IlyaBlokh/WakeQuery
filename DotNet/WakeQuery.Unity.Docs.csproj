@@ -1,4 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Compiles the Unity adapter against minimal UnityEngine stubs so the API
+    documentation can be generated and checked without a Unity installation.
+    Not shipped; Unity compiles Runtime/Unity through its own asmdef.
+  -->
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <LangVersion>9.0</LangVersion>
@@ -6,9 +11,12 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AssemblyName>WakeQuery.Unity</AssemblyName>
+    <RootNamespace>WakeQuery.Unity</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="WakeQuery.Core.csproj" />
-    <Compile Include="../Runtime/Testing/**/*.cs" />
+    <Compile Include="../Runtime/Unity/**/*.cs" />
+    <Compile Include="../Documentation~/unity-stubs/*.cs" />
   </ItemGroup>
 </Project>

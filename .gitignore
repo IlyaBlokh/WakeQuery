@@ -15,3 +15,6 @@ DotNet/.artifacts~/
 .ci/UnityProject/Packages/packages-lock.json
 .ci/UnityProject/Assets/Generated/
 .ci/UnityProject/Assets/Generated.meta
+Documentation~/_site/
+Documentation~/api/
+Documentation~/obj/

@@ -5,6 +5,25 @@ using WakeQuery.Internal;
 
 namespace WakeQuery.Testing
 {
+    /// <summary>
+    /// A deterministic runtime for tests: you control time, frames, focus, and reconnects.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Nothing happens until you call <see cref="RunOneFrame"/> or <see cref="AdvanceBy"/>. The thread that creates
+    /// the runtime owns it and every client it creates. Exceptions from listeners are rethrown from the frame
+    /// unless a client sets <see cref="QueryClientOptions.UnhandledException"/>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// using var runtime = new ManualQueryRuntime();
+    /// using QueryClient client = runtime.CreateClient();
+    /// var observer = client.Watch(definition);
+    /// runtime.RunOneFrame();                    // starts the fetch
+    /// runtime.AdvanceBy(TimeSpan.FromSeconds(30)); // moves the clock and runs a frame
+    /// </code>
+    /// </example>
     public sealed class ManualQueryRuntime : IDisposable, IQueryRuntimeHost
     {
         private readonly List<QueryClient> _clients = new List<QueryClient>();
@@ -13,6 +32,8 @@ namespace WakeQuery.Testing
         private Queue<Action> _draining = new Queue<Action>();
         private bool _isDisposed;
 
+        /// <summary>Creates a runtime owned by the current thread.</summary>
+        /// <param name="startTime">The initial <see cref="UtcNow"/>. Defaults to the Unix epoch.</param>
         public ManualQueryRuntime(DateTimeOffset? startTime = null)
         {
             OwnerThreadId = Environment.CurrentManagedThreadId;
@@ -28,18 +49,33 @@ namespace WakeQuery.Testing
         Action<Exception> IQueryRuntimeHost.DefaultUnhandledException =>
             exception => throw exception;
 
+        /// <summary>Gets the managed thread id of the thread that created the runtime.</summary>
         public int OwnerThreadId { get; }
 
+        /// <summary>Gets the monotonic time advanced by <see cref="AdvanceBy"/>. Starts at zero.</summary>
         public TimeSpan Elapsed { get; private set; }
 
+        /// <summary>Gets the wall-clock time used for <see cref="QueryState{T}.UpdatedAt"/>. Advances with <see cref="Elapsed"/>.</summary>
         public DateTimeOffset UtcNow { get; private set; }
 
+        /// <summary>Creates a client driven by this runtime.</summary>
+        /// <param name="options">Optional client options.</param>
+        /// <returns>The client.</returns>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The runtime has been disposed.</exception>
         public QueryClient CreateClient(QueryClientOptions options = null)
         {
             AssertAvailable();
             return new QueryClient(this, options);
         }
 
+        /// <summary>Runs one runtime cycle without advancing time.</summary>
+        /// <remarks>
+        /// Runs callbacks posted since the last frame (such as completed fetches), then, for each client, runs due
+        /// deadlines (staleness, polling, retries, eviction), dispatches notifications, and completes waiting tasks.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The runtime has been disposed.</exception>
         public void RunOneFrame()
         {
             AssertAvailable();
@@ -68,6 +104,11 @@ namespace WakeQuery.Testing
             }
         }
 
+        /// <summary>Advances <see cref="Elapsed"/> and <see cref="UtcNow"/>, then runs one frame.</summary>
+        /// <param name="elapsed">The time to advance. Must not be negative.</param>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="elapsed"/> is negative.</exception>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The runtime has been disposed.</exception>
         public void AdvanceBy(TimeSpan elapsed)
         {
             AssertAvailable();
@@ -81,6 +122,11 @@ namespace WakeQuery.Testing
             RunOneFrame();
         }
 
+        /// <summary>Simulates the application gaining or losing focus.</summary>
+        /// <param name="isFocused">Whether the application is focused. Clients start focused.</param>
+        /// <remarks>Losing focus pauses polling. Regaining focus refetches stale observed queries whose policy allows it.</remarks>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The runtime has been disposed.</exception>
         public void SetFocused(bool isFocused)
         {
             AssertAvailable();
@@ -97,6 +143,9 @@ namespace WakeQuery.Testing
             }
         }
 
+        /// <summary>Simulates a network reconnect: refetches stale observed queries whose policy allows it.</summary>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The runtime has been disposed.</exception>
         public void NotifyReconnected()
         {
             AssertAvailable();
@@ -113,6 +162,8 @@ namespace WakeQuery.Testing
             }
         }
 
+        /// <summary>Disposes every client created by this runtime and drops pending callbacks.</summary>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the owner's thread.</exception>
         public void Dispose()
         {
             AssertOwnerThread();

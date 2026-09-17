@@ -6,6 +6,15 @@ using WakeQuery.Internal;
 
 namespace WakeQuery
 {
+    /// <summary>
+    /// Runs a remote write operation and applies its cache effects. Created by <see cref="QueryClient.CreateMutation{TInput,TOutput}"/>.
+    /// </summary>
+    /// <typeparam name="TInput">The input passed to each execution.</typeparam>
+    /// <typeparam name="TOutput">The result produced by a successful execution.</typeparam>
+    /// <remarks>
+    /// Each <see cref="ExecuteAsync"/> call is an independent execution. Executions may overlap, are never
+    /// deduplicated, and are never retried automatically.
+    /// </remarks>
     public sealed class Mutation<TInput, TOutput> :
         IDisposable,
         IMutationLifetime
@@ -35,6 +44,9 @@ namespace WakeQuery
             _state = BuildState();
         }
 
+        /// <summary>Gets the latest mutation snapshot.</summary>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The mutation or its client has been disposed.</exception>
         public MutationState<TOutput> State
         {
             get
@@ -44,6 +56,16 @@ namespace WakeQuery
             }
         }
 
+        /// <summary>Adds a listener for state changes.</summary>
+        /// <param name="listener">
+        /// Receives the current snapshot immediately, then every later change. When called from inside a
+        /// notification, the listener is invoked after the current listeners in the same dispatch.
+        /// </param>
+        /// <returns>A handle that removes the listener when disposed.</returns>
+        /// <remarks>Exceptions thrown by the listener are reported to <see cref="QueryClientOptions.UnhandledException"/>.</remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="listener"/> is <see langword="null"/>.</exception>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The mutation or its client has been disposed.</exception>
         public IDisposable Subscribe(Action<MutationState<TOutput>> listener)
         {
             AssertAvailable();
@@ -65,6 +87,20 @@ namespace WakeQuery
             return new MutationSubscription(this, listener);
         }
 
+        /// <summary>Starts a new execution.</summary>
+        /// <param name="input">The input passed to the remote operation.</param>
+        /// <param name="cancellationToken">Cancels this execution. The token is linked to the one passed to the operation.</param>
+        /// <returns>
+        /// A task that completes with the output after success effects are applied and observers are notified.
+        /// It faults with the operation's exception or a <see cref="MutationEffectException"/>, and is canceled
+        /// when the execution is canceled or the mutation or client is disposed.
+        /// </returns>
+        /// <remarks>
+        /// An execution whose operation completes after cancellation was requested is reported as canceled, whatever its result.
+        /// If <paramref name="cancellationToken"/> is already canceled, the operation is not started.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The mutation or its client has been disposed.</exception>
         public Task<TOutput> ExecuteAsync(
             TInput input,
             CancellationToken cancellationToken = default)
@@ -106,6 +142,14 @@ namespace WakeQuery
             return execution.Completion.Task;
         }
 
+        /// <summary>Requests cancellation of every running execution.</summary>
+        /// <remarks>
+        /// This signals the cancellation token passed to each running operation. Each execution is reported as
+        /// canceled once its operation completes, even if the operation ignores the token and returns a result.
+        /// Completed executions and the terminal state are not affected.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The mutation or its client has been disposed.</exception>
         public void Cancel()
         {
             AssertAvailable();
@@ -116,6 +160,11 @@ namespace WakeQuery
             }
         }
 
+        /// <summary>Cancels running executions and removes all listeners.</summary>
+        /// <remarks>
+        /// Tasks of running executions complete as canceled immediately. Calling <see cref="Dispose"/> more than once has no effect.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
         public void Dispose()
         {
             _client.AssertOwnerThread();

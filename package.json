@@ -8,6 +8,8 @@
     "name": "WakeQuery Contributors"
   },
   "license": "MIT",
+  "documentationUrl": "https://ilyablokh.github.io/WakeQuery/",
+  "changelogUrl": "https://github.com/IlyaBlokh/WakeQuery/blob/master/CHANGELOG.md",
   "keywords": [
     "query",
     "cache",

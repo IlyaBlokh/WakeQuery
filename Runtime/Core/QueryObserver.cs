@@ -6,6 +6,16 @@ using WakeQuery.Internal;
 
 namespace WakeQuery
 {
+    /// <summary>
+    /// An active interest in one query, created by <see cref="QueryClient.Watch{T}"/>.
+    /// </summary>
+    /// <typeparam name="T">The query result type.</typeparam>
+    /// <remarks>
+    /// While an observer is alive, its query is kept in the cache, fetched when stale, polled, and refetched
+    /// on focus, reconnect, and invalidation according to its <see cref="QueryPolicy"/>. Dispose the observer
+    /// to release that interest. If no other caller or observer still needs a running fetch, disposing the
+    /// last observer cancels it.
+    /// </remarks>
     public sealed class QueryObserver<T> : IDisposable, IQueryObserverInternal
     {
         private readonly QueryClient _client;
@@ -41,6 +51,9 @@ namespace WakeQuery
             _state = BuildState(_stateRevision);
         }
 
+        /// <summary>Gets the latest snapshot for this observer.</summary>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The observer has been disposed.</exception>
         public QueryState<T> State
         {
             get
@@ -71,6 +84,16 @@ namespace WakeQuery
             DispatchListeners(_client.ReportObserverException);
         }
 
+        /// <summary>Adds a listener for state changes.</summary>
+        /// <param name="listener">
+        /// Receives the current snapshot immediately, then every later change. When called from inside a
+        /// notification, the listener is invoked after the current listeners in the same dispatch.
+        /// </param>
+        /// <returns>A handle that removes the listener when disposed.</returns>
+        /// <remarks>Exceptions thrown by the listener are reported to <see cref="QueryClientOptions.UnhandledException"/>.</remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="listener"/> is <see langword="null"/>.</exception>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The observer has been disposed.</exception>
         public IDisposable Subscribe(Action<QueryState<T>> listener)
         {
             _client.AssertOwnerThread();
@@ -93,6 +116,11 @@ namespace WakeQuery
             return new ObserverSubscription(this, listener);
         }
 
+        /// <summary>Returns data that is fresh for this observer, or joins or starts a fetch.</summary>
+        /// <param name="cancellationToken">Cancels only this caller's wait, not the shared fetch.</param>
+        /// <returns>A task that completes with the data, or faults with the fetch error after all retries.</returns>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The observer has been disposed.</exception>
         public Task<T> EnsureAsync(CancellationToken cancellationToken = default)
         {
             _client.AssertOwnerThread();
@@ -100,6 +128,11 @@ namespace WakeQuery
             return _client.Fetch(this, force: false, cancellationToken);
         }
 
+        /// <summary>Fetches the query even if the data is fresh, joining a running fetch if there is one.</summary>
+        /// <param name="cancellationToken">Cancels only this caller's wait, not the shared fetch.</param>
+        /// <returns>A task that completes with the fetched data, or faults with the fetch error after all retries.</returns>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The observer has been disposed.</exception>
         public Task<T> RefetchAsync(CancellationToken cancellationToken = default)
         {
             _client.AssertOwnerThread();
@@ -107,6 +140,9 @@ namespace WakeQuery
             return _client.Fetch(this, force: true, cancellationToken);
         }
 
+        /// <summary>Invalidates this observer's query key. Equivalent to <c>client.Invalidate(QueryFilter.Exact(key))</c>.</summary>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The observer has been disposed.</exception>
         public void Invalidate()
         {
             _client.AssertOwnerThread();
@@ -114,6 +150,12 @@ namespace WakeQuery
             _client.Invalidate(QueryFilter.Exact(_definition.Key));
         }
 
+        /// <summary>
+        /// Cancels the running fetch for this observer's key, for every caller and observer.
+        /// Equivalent to <c>client.Cancel(QueryFilter.Exact(key))</c>.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The observer has been disposed.</exception>
         public void CancelSharedFetch()
         {
             _client.AssertOwnerThread();
@@ -121,6 +163,12 @@ namespace WakeQuery
             _client.Cancel(QueryFilter.Exact(_definition.Key));
         }
 
+        /// <summary>Stops observing the query and removes all listeners.</summary>
+        /// <remarks>
+        /// Calling <see cref="Dispose"/> more than once has no effect. Once no observer remains, the entry is evicted
+        /// after its <see cref="QueryPolicy.UnusedFor"/> period.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
         public void Dispose()
         {
             _client.AssertOwnerThread();

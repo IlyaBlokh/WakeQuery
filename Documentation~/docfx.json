@@ -1,0 +1,48 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": "../DotNet",
+          "files": [
+            "WakeQuery.Core.csproj",
+            "WakeQuery.Testing.csproj",
+            "WakeQuery.Unity.Docs.csproj"
+          ]
+        }
+      ],
+      "dest": "api",
+      "namespaceLayout": "flattened",
+      "memberLayout": "samePage"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "index.md",
+          "toc.yml",
+          "articles/**.md",
+          "articles/toc.yml",
+          "api/**.yml"
+        ]
+      }
+    ],
+    "output": "_site",
+    "template": [
+      "default",
+      "modern"
+    ],
+    "globalMetadata": {
+      "_appName": "WakeQuery",
+      "_appTitle": "WakeQuery",
+      "_appFooter": "WakeQuery · MIT License",
+      "_enableSearch": true,
+      "_disableContribution": true
+    },
+    "sitemap": {
+      "baseUrl": "https://ilyablokh.github.io/WakeQuery"
+    }
+  }
+}

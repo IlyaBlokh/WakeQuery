@@ -2,6 +2,13 @@
 
 All notable changes to WakeQuery are documented here.
 
+## [Unreleased]
+
+### Added
+
+- XML documentation for every public API member, enforced by the .NET build.
+- DocFX documentation site with guides and API reference, published to GitHub Pages.
+
 ## [0.1.0] - 2026-09-03
 
 ### Added

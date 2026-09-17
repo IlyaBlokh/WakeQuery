@@ -6,6 +6,21 @@ using WakeQuery.Internal;
 
 namespace WakeQuery
 {
+    /// <summary>
+    /// Owns an in-memory query cache, its shared fetches, and its mutations.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Create a client with <c>UnityQueryRuntime.CreateClient</c> in a Unity application, or with
+    /// <c>ManualQueryRuntime.CreateClient</c> in tests, and dispose it when its application scope ends.
+    /// Each client has an independent cache.
+    /// </para>
+    /// <para>
+    /// All public operations must run on the thread that owns the client (the Unity main thread).
+    /// Fetch and mutation delegates may complete on any thread; their results, cache changes, and
+    /// observer notifications are applied on the owner's next runtime cycle.
+    /// </para>
+    /// </remarks>
     public sealed class QueryClient : IDisposable
     {
         private readonly IQueryRuntimeHost _runtime;
@@ -46,6 +61,23 @@ namespace WakeQuery
 
         internal TimeSpan Elapsed => _runtime.Elapsed;
 
+        /// <summary>Starts observing a query.</summary>
+        /// <typeparam name="T">The query result type.</typeparam>
+        /// <param name="definition">The query to observe.</param>
+        /// <param name="observer">
+        /// Optional listener. It receives the current snapshot synchronously before this method returns,
+        /// then every later state change.
+        /// </param>
+        /// <returns>An observer. Dispose it to release its interest in the query.</returns>
+        /// <remarks>
+        /// If the data is stale for this observer, a fetch is started or joined on the next runtime cycle.
+        /// While observed, the query also refetches according to its <see cref="QueryPolicy"/>
+        /// (polling, focus, reconnect, invalidation).
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="definition"/> is <see langword="null"/>.</exception>
+        /// <exception cref="QueryTypeMismatchException">The key is already cached with a different result type.</exception>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The client has been disposed.</exception>
         public QueryObserver<T> Watch<T>(
             QueryDefinition<T> definition,
             Action<QueryState<T>> observer = null)
@@ -78,6 +110,17 @@ namespace WakeQuery
             return queryObserver;
         }
 
+        /// <summary>Returns fresh cached data, or joins or starts a fetch.</summary>
+        /// <typeparam name="T">The query result type.</typeparam>
+        /// <param name="definition">The query to load.</param>
+        /// <param name="cancellationToken">
+        /// Cancels only this caller's wait. The shared fetch continues while another caller or observer needs it.
+        /// </param>
+        /// <returns>A task that completes with the data, or faults with the fetch error after all retries.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="definition"/> is <see langword="null"/>.</exception>
+        /// <exception cref="QueryTypeMismatchException">The key is already cached with a different result type.</exception>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The client has been disposed.</exception>
         public Task<T> EnsureAsync<T>(
             QueryDefinition<T> definition,
             CancellationToken cancellationToken = default)
@@ -88,6 +131,18 @@ namespace WakeQuery
                 : FetchImperative(definition, force: false, cancellationToken);
         }
 
+        /// <summary>Fetches the query even if cached data is fresh.</summary>
+        /// <typeparam name="T">The query result type.</typeparam>
+        /// <param name="definition">The query to load.</param>
+        /// <param name="cancellationToken">
+        /// Cancels only this caller's wait. The shared fetch continues while another caller or observer needs it.
+        /// </param>
+        /// <returns>A task that completes with the fetched data, or faults with the fetch error after all retries.</returns>
+        /// <remarks>If a fetch for the key is already running, this call joins it instead of starting another.</remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="definition"/> is <see langword="null"/>.</exception>
+        /// <exception cref="QueryTypeMismatchException">The key is already cached with a different result type.</exception>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The client has been disposed.</exception>
         public Task<T> RefetchAsync<T>(
             QueryDefinition<T> definition,
             CancellationToken cancellationToken = default)
@@ -98,6 +153,17 @@ namespace WakeQuery
                 : FetchImperative(definition, force: true, cancellationToken);
         }
 
+        /// <summary>Writes data to the cache as a successful, fresh result.</summary>
+        /// <typeparam name="T">The query result type.</typeparam>
+        /// <param name="key">The key to write. The entry is created if it does not exist.</param>
+        /// <param name="data">The data to store.</param>
+        /// <remarks>
+        /// Clears any error and invalidation, and notifies observers. An entry with no observers is evicted
+        /// after its <see cref="QueryPolicy.UnusedFor"/> period (5 minutes if no definition has used the key).
+        /// </remarks>
+        /// <exception cref="QueryTypeMismatchException">The key is already cached with a different result type.</exception>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The client has been disposed.</exception>
         public void SetData<T>(QueryKey<T> key, T data)
         {
             AssertAvailable();
@@ -129,6 +195,19 @@ namespace WakeQuery
             }
         }
 
+        /// <summary>Replaces cached data with a value computed from the current data.</summary>
+        /// <typeparam name="T">The query result type.</typeparam>
+        /// <param name="key">The key to update.</param>
+        /// <param name="update">Produces the new data from the cached data.</param>
+        /// <returns>
+        /// <see langword="true"/> if the key had data and was updated; <see langword="false"/> if it had no data,
+        /// in which case <paramref name="update"/> is not called.
+        /// </returns>
+        /// <remarks>The new value is written as with <see cref="SetData{T}"/>.</remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="update"/> is <see langword="null"/>.</exception>
+        /// <exception cref="QueryTypeMismatchException">The key is already cached with a different result type.</exception>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The client has been disposed.</exception>
         public bool UpdateData<T>(QueryKey<T> key, Func<T, T> update)
         {
             AssertAvailable();
@@ -147,6 +226,17 @@ namespace WakeQuery
             return true;
         }
 
+        /// <summary>Marks matching queries stale and refetches the ones that are observed.</summary>
+        /// <param name="filter">Selects the queries.</param>
+        /// <returns>The number of matching queries.</returns>
+        /// <remarks>
+        /// Cached data is kept, so observers continue to see it while the refetch runs. A fetch that is already
+        /// running still completes for its callers, but its result is not cached; observed queries fetch again afterwards.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">
+        /// <paramref name="filter"/> is <c>default</c>, or the method is called from a thread other than the owner's.
+        /// </exception>
+        /// <exception cref="ObjectDisposedException">The client has been disposed.</exception>
         public int Invalidate(QueryFilter filter)
         {
             AssertAvailable();
@@ -178,6 +268,17 @@ namespace WakeQuery
             return count;
         }
 
+        /// <summary>Cancels the shared fetches of matching queries.</summary>
+        /// <param name="filter">Selects the queries.</param>
+        /// <returns>The number of fetches that were canceled.</returns>
+        /// <remarks>
+        /// The fetch delegate's cancellation token is canceled and every caller waiting on the fetch sees a canceled task.
+        /// Cached data is not changed.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">
+        /// <paramref name="filter"/> is <c>default</c>, or the method is called from a thread other than the owner's.
+        /// </exception>
+        /// <exception cref="ObjectDisposedException">The client has been disposed.</exception>
         public int Cancel(QueryFilter filter)
         {
             AssertAvailable();
@@ -195,6 +296,17 @@ namespace WakeQuery
             return count;
         }
 
+        /// <summary>Cancels fetches for matching queries and clears their cached data.</summary>
+        /// <param name="filter">Selects the queries.</param>
+        /// <returns>The number of matching queries.</returns>
+        /// <remarks>
+        /// Unobserved entries are deleted. Observed entries return to <see cref="QueryStatus.Empty"/>
+        /// and are fetched again on a later runtime cycle.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">
+        /// <paramref name="filter"/> is <c>default</c>, or the method is called from a thread other than the owner's.
+        /// </exception>
+        /// <exception cref="ObjectDisposedException">The client has been disposed.</exception>
         public int Remove(QueryFilter filter)
         {
             AssertAvailable();
@@ -232,6 +344,14 @@ namespace WakeQuery
             return count;
         }
 
+        /// <summary>Creates a mutation that runs remote writes and applies their cache effects.</summary>
+        /// <typeparam name="TInput">The mutation input type.</typeparam>
+        /// <typeparam name="TOutput">The mutation output type.</typeparam>
+        /// <param name="definition">The mutation to create.</param>
+        /// <returns>A mutation. Dispose it when its scope ends; disposing the client also disposes it.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="definition"/> is <see langword="null"/>.</exception>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
+        /// <exception cref="ObjectDisposedException">The client has been disposed.</exception>
         public Mutation<TInput, TOutput> CreateMutation<TInput, TOutput>(
             MutationDefinition<TInput, TOutput> definition)
         {
@@ -244,6 +364,14 @@ namespace WakeQuery
             return mutation;
         }
 
+        /// <summary>
+        /// Cancels all fetches and mutation executions, disposes all observers and mutations, and clears the cache.
+        /// </summary>
+        /// <remarks>
+        /// Pending mutation tasks complete as canceled. Calling <see cref="Dispose"/> more than once has no effect.
+        /// If the unhandled-exception handler throws while reporting queued listener errors, the first such exception is rethrown.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the client owner's thread.</exception>
         public void Dispose()
         {
             AssertOwnerThread();

@@ -7,10 +7,27 @@ using WakeQuery.Internal;
 
 namespace WakeQuery.Unity
 {
+    /// <summary>
+    /// Creates query clients driven by Unity's PlayerLoop.
+    /// </summary>
+    /// <remarks>
+    /// The first client installs one callback in the <c>Update</c> phase of the current PlayerLoop, and disposing
+    /// the last client removes it. No <c>MonoBehaviour</c>, <c>GameObject</c>, or scene object is created.
+    /// Clients share this runtime but keep independent caches. Time is based on
+    /// <c>Time.realtimeSinceStartupAsDouble</c>, and focus follows <c>Application.focusChanged</c>.
+    /// </remarks>
     public static class UnityQueryRuntime
     {
         private static PlayerLoopHost _host;
 
+        /// <summary>Creates a client that runs on the Unity main thread.</summary>
+        /// <param name="options">
+        /// Optional client options. By default, listener exceptions are logged with <c>Debug.LogException</c>.
+        /// </param>
+        /// <returns>The client. Dispose it when its application scope ends.</returns>
+        /// <exception cref="InvalidOperationException">
+        /// Called from a thread other than the one that created the first client, or the PlayerLoop has no <c>Update</c> phase.
+        /// </exception>
         public static QueryClient CreateClient(QueryClientOptions options = null)
         {
             PlayerLoopHost host = _host;
@@ -23,6 +40,14 @@ namespace WakeQuery.Unity
             return new QueryClient(host, options);
         }
 
+        /// <summary>
+        /// Reports that network connectivity was restored. Stale observed queries whose policy allows it are refetched.
+        /// </summary>
+        /// <remarks>
+        /// WakeQuery does not detect connectivity itself; call this from your own networking layer.
+        /// Does nothing if no client exists.
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">Called from a thread other than the Unity main thread that owns the clients.</exception>
         public static void NotifyReconnected()
         {
             PlayerLoopHost host = _host;
