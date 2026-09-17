@@ -13,7 +13,7 @@ namespace WakeQuery
             _identity = identity;
         }
 
-        public static QueryFilter All => new QueryFilter(QueryFilterKind.All, null);
+        public static QueryFilter All => new(QueryFilterKind.All, null);
 
         public static QueryFilter Exact<T>(QueryKey<T> key)
         {

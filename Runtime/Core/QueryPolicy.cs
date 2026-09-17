@@ -4,7 +4,7 @@ namespace WakeQuery
 {
     public sealed class QueryPolicy
     {
-        public static QueryPolicy Default { get; } = new QueryPolicy();
+        public static QueryPolicy Default { get; } = new();
 
         public QueryPolicy(
             TimeSpan? staleAfter = null,

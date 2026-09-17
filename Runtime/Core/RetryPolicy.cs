@@ -27,7 +27,7 @@ namespace WakeQuery
 
         private readonly DelayKind _delayKind;
 
-        public static RetryPolicy None { get; } = new RetryPolicy(
+        public static RetryPolicy None { get; } = new(
             1,
             TimeSpan.Zero,
             TimeSpan.Zero,

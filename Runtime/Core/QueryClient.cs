@@ -9,26 +9,18 @@ namespace WakeQuery
     public sealed class QueryClient : IDisposable
     {
         private readonly IQueryRuntimeHost _runtime;
-        private readonly Dictionary<QueryKeyIdentity, QueryEntry> _entries =
-            new Dictionary<QueryKeyIdentity, QueryEntry>();
-        private readonly DeadlineQueue _deadlines = new DeadlineQueue();
-        private readonly List<IQueryObserverInternal> _pendingNotifications =
-            new List<IQueryObserverInternal>();
-        private readonly HashSet<IQueryObserverInternal> _pendingNotificationSet =
-            new HashSet<IQueryObserverInternal>();
-        private readonly List<IQueryObserverInternal> _dispatchNotifications =
-            new List<IQueryObserverInternal>();
-        private readonly List<IMutationNotification> _pendingMutationNotifications =
-            new List<IMutationNotification>();
-        private readonly HashSet<IMutationNotification> _pendingMutationNotificationSet =
-            new HashSet<IMutationNotification>();
-        private readonly List<IMutationNotification> _dispatchMutationNotifications =
-            new List<IMutationNotification>();
-        private readonly HashSet<IMutationLifetime> _mutations =
-            new HashSet<IMutationLifetime>();
-        private readonly List<Exception> _observerErrors = new List<Exception>();
-        private readonly List<Action> _afterNotifications = new List<Action>();
-        private readonly List<Action> _dispatchAfterNotifications = new List<Action>();
+        private readonly Dictionary<QueryKeyIdentity, QueryEntry> _entries = new();
+        private readonly DeadlineQueue _deadlines = new();
+        private readonly List<IQueryObserverInternal> _pendingNotifications = new();
+        private readonly HashSet<IQueryObserverInternal> _pendingNotificationSet = new();
+        private readonly List<IQueryObserverInternal> _dispatchNotifications = new();
+        private readonly List<IMutationNotification> _pendingMutationNotifications = new();
+        private readonly HashSet<IMutationNotification> _pendingMutationNotificationSet = new();
+        private readonly List<IMutationNotification> _dispatchMutationNotifications = new();
+        private readonly HashSet<IMutationLifetime> _mutations = new();
+        private readonly List<Exception> _observerErrors = new();
+        private readonly List<Action> _afterNotifications = new();
+        private readonly List<Action> _dispatchAfterNotifications = new();
         private readonly Action<Exception> _unhandledException;
         private readonly IQueryDiagnosticListener _diagnostics;
         private long _fetchGeneration;
@@ -41,7 +33,7 @@ namespace WakeQuery
             QueryClientOptions options)
         {
             _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
-            options = options ?? new QueryClientOptions();
+            options ??= new QueryClientOptions();
             _unhandledException =
                 options.UnhandledException ??
                 runtime.DefaultUnhandledException ??
@@ -91,12 +83,9 @@ namespace WakeQuery
             CancellationToken cancellationToken = default)
         {
             AssertAvailable();
-            if (definition == null)
-            {
-                throw new ArgumentNullException(nameof(definition));
-            }
-
-            return FetchImperative(definition, force: false, cancellationToken);
+            return definition == null 
+                ? throw new ArgumentNullException(nameof(definition))
+                : FetchImperative(definition, force: false, cancellationToken);
         }
 
         public Task<T> RefetchAsync<T>(
@@ -104,12 +93,9 @@ namespace WakeQuery
             CancellationToken cancellationToken = default)
         {
             AssertAvailable();
-            if (definition == null)
-            {
-                throw new ArgumentNullException(nameof(definition));
-            }
-
-            return FetchImperative(definition, force: true, cancellationToken);
+            return definition == null 
+                ? throw new ArgumentNullException(nameof(definition))
+                : FetchImperative(definition, force: true, cancellationToken);
         }
 
         public void SetData<T>(QueryKey<T> key, T data)
@@ -152,7 +138,7 @@ namespace WakeQuery
             }
 
             QueryEntry<T> entry = GetExistingEntry(key);
-            if (entry == null || !entry.HasData)
+            if (entry is not { HasData: true })
             {
                 return false;
             }
@@ -166,26 +152,19 @@ namespace WakeQuery
             AssertAvailable();
             int count = 0;
             List<QueryEntry> entries = FindMatches(filter);
-            for (int index = 0; index < entries.Count; index++)
+            foreach (var entry in entries)
             {
-                QueryEntry entry = entries[index];
                 if (!IsCurrentEntry(entry))
-                {
                     continue;
-                }
 
                 entry.CacheGeneration++;
                 entry.MarkInvalidated();
                 bool settledRetry = entry.SupersedeWaitingRetry(this);
-                if (!settledRetry)
-                {
+                if (!settledRetry) 
                     entry.NotifyObservers();
-                }
 
-                if (!entry.HasActiveFetch)
-                {
+                if (!entry.HasActiveFetch) 
                     ScheduleObservedEnsures(entry);
-                }
 
                 EmitDiagnostic(
                     QueryDiagnosticKind.Invalidated,
@@ -204,13 +183,10 @@ namespace WakeQuery
             AssertAvailable();
             int count = 0;
             List<QueryEntry> entries = FindMatches(filter);
-            for (int index = 0; index < entries.Count; index++)
+            foreach (var entry in entries)
             {
-                QueryEntry entry = entries[index];
                 if (!IsCurrentEntry(entry) || !entry.HasActiveFetch)
-                {
                     continue;
-                }
 
                 entry.CancelActive(this, ensureSupersededObservers: false);
                 count++;
@@ -224,13 +200,10 @@ namespace WakeQuery
             AssertAvailable();
             int count = 0;
             List<QueryEntry> entries = FindMatches(filter);
-            for (int index = 0; index < entries.Count; index++)
+            foreach (var entry in entries)
             {
-                QueryEntry entry = entries[index];
                 if (!IsCurrentEntry(entry))
-                {
                     continue;
-                }
 
                 entry.CacheGeneration++;
                 entry.CancelActive(this, ensureSupersededObservers: false);
@@ -264,9 +237,7 @@ namespace WakeQuery
         {
             AssertAvailable();
             if (definition == null)
-            {
                 throw new ArgumentNullException(nameof(definition));
-            }
 
             var mutation = new Mutation<TInput, TOutput>(this, definition);
             _mutations.Add(mutation);
@@ -497,10 +468,8 @@ namespace WakeQuery
 
         internal void ApplyMutationEffects(IReadOnlyList<Action<QueryClient>> effects)
         {
-            for (int index = 0; index < effects.Count; index++)
-            {
-                effects[index](this);
-            }
+            foreach (var actionClient in effects) 
+                actionClient(this);
         }
 
         internal void RequestCancellation(CancellationTokenSource cancellation)
@@ -559,36 +528,30 @@ namespace WakeQuery
 
             _isFocused = isFocused;
             List<IQueryObserverInternal> observers = GetObserversSnapshot();
-            for (int index = 0; index < observers.Count; index++)
-            {
-                observers[index].OnFocusChanged(isFocused);
-            }
+            foreach (var observer in observers) 
+                observer.OnFocusChanged(isFocused);
         }
 
         internal void OnReconnect()
         {
             AssertAvailable();
             List<IQueryObserverInternal> observers = GetObserversSnapshot();
-            for (int index = 0; index < observers.Count; index++)
+            foreach (var observer in observers)
             {
-                observers[index].OnReconnect();
+                observer.OnReconnect();
             }
         }
 
         internal void AbandonFromRuntime()
         {
             if (_isDisposed)
-            {
                 return;
-            }
 
             Action[] pendingCompletions = _afterNotifications.ToArray();
             _afterNotifications.Clear();
             _isDisposed = true;
-            foreach (IMutationLifetime mutation in _mutations)
-            {
+            foreach (IMutationLifetime mutation in _mutations) 
                 mutation.OnClientDisposed();
-            }
 
             _mutations.Clear();
             foreach (QueryEntry entry in _entries.Values)
@@ -606,10 +569,8 @@ namespace WakeQuery
             _dispatchMutationNotifications.Clear();
             _observerErrors.Clear();
             _deadlines.Clear();
-            for (int index = 0; index < pendingCompletions.Length; index++)
-            {
-                pendingCompletions[index]();
-            }
+            foreach (var pendingCompletion in pendingCompletions) 
+                pendingCompletion();
         }
 
         private Task<T> FetchImperative<T>(
@@ -757,6 +718,9 @@ namespace WakeQuery
 
                     if (completed.IsFaulted)
                     {
+                        if (completed.Exception == null)
+                            return;
+                        
                         Exception exception =
                             completed.Exception.InnerException ?? completed.Exception;
                         if (exception is OperationCanceledException canceled)
@@ -1106,13 +1070,10 @@ namespace WakeQuery
             FetchGeneration<T> generation,
             T result)
         {
-            for (int index = 0; index < generation.Waiters.Count; index++)
+            foreach (var waiter in generation.Waiters)
             {
-                QueryWaiter<T> waiter = generation.Waiters[index];
                 if (waiter.IsCompleted)
-                {
                     continue;
-                }
 
                 waiter.IsCompleted = true;
                 waiter.Registration.Dispose();
@@ -1126,13 +1087,10 @@ namespace WakeQuery
             FetchGeneration<T> generation,
             Exception exception)
         {
-            for (int index = 0; index < generation.Waiters.Count; index++)
+            foreach (var waiter in generation.Waiters)
             {
-                QueryWaiter<T> waiter = generation.Waiters[index];
                 if (waiter.IsCompleted)
-                {
                     continue;
-                }
 
                 waiter.IsCompleted = true;
                 waiter.Registration.Dispose();
@@ -1145,13 +1103,10 @@ namespace WakeQuery
         private static void CompleteWaitersCanceled<T>(
             FetchGeneration<T> generation)
         {
-            for (int index = 0; index < generation.Waiters.Count; index++)
+            foreach (var waiter in generation.Waiters)
             {
-                QueryWaiter<T> waiter = generation.Waiters[index];
                 if (waiter.IsCompleted)
-                {
                     continue;
-                }
 
                 waiter.IsCompleted = true;
                 waiter.Registration.Dispose();
@@ -1186,17 +1141,13 @@ namespace WakeQuery
         {
             QueryKeyIdentity identity = key.Identity;
             if (!_entries.TryGetValue(identity, out QueryEntry existing))
-            {
                 return null;
-            }
 
             if (existing.DataType != typeof(T))
-            {
                 throw new QueryTypeMismatchException(
                     identity.ToString(),
                     existing.DataType,
                     typeof(T));
-            }
 
             return (QueryEntry<T>)existing;
         }
@@ -1206,9 +1157,7 @@ namespace WakeQuery
             entry.GarbageCollectionDeadline?.Cancel();
             entry.GarbageCollectionDeadline = null;
             if (!entry.IsUnused)
-            {
                 return;
-            }
 
             long generation = ++entry.GarbageCollectionGeneration;
             DeadlineHandle handle = null;
@@ -1240,11 +1189,8 @@ namespace WakeQuery
 
         private void ScheduleObservedEnsures(QueryEntry entry)
         {
-            for (int index = 0; index < entry.Observers.Count; index++)
-            {
-                IQueryObserverInternal observer = entry.Observers[index];
+            foreach (var observer in entry.Observers) 
                 ScheduleUntypedEnsure(observer);
-            }
         }
 
         private void ScheduleUntypedEnsure(IQueryObserverInternal observer)
@@ -1267,10 +1213,8 @@ namespace WakeQuery
 
         private void NotifyFetchSettled(QueryEntry entry)
         {
-            for (int index = 0; index < entry.Observers.Count; index++)
-            {
-                entry.Observers[index].OnFetchSettled();
-            }
+            foreach (var observer in entry.Observers) 
+                observer.OnFetchSettled();
         }
 
         private void DispatchNotifications()
@@ -1278,13 +1222,10 @@ namespace WakeQuery
             _dispatchNotifications.AddRange(_pendingNotifications);
             _pendingNotifications.Clear();
             _pendingNotificationSet.Clear();
-            for (int index = 0; index < _dispatchNotifications.Count; index++)
+            foreach (var observer in _dispatchNotifications)
             {
-                IQueryObserverInternal observer = _dispatchNotifications[index];
-                if (!observer.IsDisposed)
-                {
+                if (!observer.IsDisposed) 
                     observer.Dispatch(ReportObserverException);
-                }
             }
 
             _dispatchNotifications.Clear();
@@ -1292,12 +1233,8 @@ namespace WakeQuery
             _dispatchMutationNotifications.AddRange(_pendingMutationNotifications);
             _pendingMutationNotifications.Clear();
             _pendingMutationNotificationSet.Clear();
-            for (int index = 0; index < _dispatchMutationNotifications.Count; index++)
-            {
-                IMutationNotification mutation =
-                    _dispatchMutationNotifications[index];
+            foreach (var mutation in _dispatchMutationNotifications) 
                 mutation.Dispatch(ReportObserverException);
-            }
 
             _dispatchMutationNotifications.Clear();
         }
@@ -1306,10 +1243,8 @@ namespace WakeQuery
         {
             _dispatchAfterNotifications.AddRange(_afterNotifications);
             _afterNotifications.Clear();
-            for (int index = 0; index < _dispatchAfterNotifications.Count; index++)
-            {
-                _dispatchAfterNotifications[index]();
-            }
+            foreach (var dispatchAfterNotification in _dispatchAfterNotifications) 
+                dispatchAfterNotification();
 
             _dispatchAfterNotifications.Clear();
         }
@@ -1317,18 +1252,15 @@ namespace WakeQuery
         private Exception ReportObserverErrors()
         {
             Exception handlerFailure = null;
-            for (int index = 0; index < _observerErrors.Count; index++)
+            foreach (var observerError in _observerErrors)
             {
                 try
                 {
-                    _unhandledException(_observerErrors[index]);
+                    _unhandledException(observerError);
                 }
                 catch (Exception exception)
                 {
-                    if (handlerFailure == null)
-                    {
-                        handlerFailure = exception;
-                    }
+                    handlerFailure ??= exception;
                 }
             }
 
@@ -1402,10 +1334,8 @@ namespace WakeQuery
             var matches = new List<QueryEntry>();
             foreach (KeyValuePair<QueryKeyIdentity, QueryEntry> pair in _entries)
             {
-                if (filter.Matches(pair.Key))
-                {
+                if (filter.Matches(pair.Key)) 
                     matches.Add(pair.Value);
-                }
             }
 
             return matches;

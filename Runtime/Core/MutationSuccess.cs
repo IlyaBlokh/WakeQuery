@@ -5,8 +5,7 @@ namespace WakeQuery
 {
     public sealed class MutationSuccess<TInput, TOutput>
     {
-        private readonly List<Action<QueryClient>> _effects =
-            new List<Action<QueryClient>>();
+        private readonly List<Action<QueryClient>> _effects = new();
         private bool _isActive = true;
 
         internal MutationSuccess(TInput input, TOutput output)

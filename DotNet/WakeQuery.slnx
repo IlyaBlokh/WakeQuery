@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="WakeQuery.Core.csproj" />
+  <Project Path="WakeQuery.Samples.Basic.csproj" />
+  <Project Path="WakeQuery.Testing.csproj" />
+  <Project Path="WakeQuery.Tests.csproj" />
+</Solution>

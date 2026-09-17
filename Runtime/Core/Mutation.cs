@@ -12,12 +12,9 @@ namespace WakeQuery
     {
         private readonly QueryClient _client;
         private readonly MutationDefinition<TInput, TOutput> _definition;
-        private readonly Dictionary<long, Execution> _executions =
-            new Dictionary<long, Execution>();
-        private readonly List<Action<MutationState<TOutput>>> _listeners =
-            new List<Action<MutationState<TOutput>>>();
-        private readonly List<Action<MutationState<TOutput>>> _deferredListeners =
-            new List<Action<MutationState<TOutput>>>();
+        private readonly Dictionary<long, Execution> _executions = new();
+        private readonly List<Action<MutationState<TOutput>>> _listeners = new();
+        private readonly List<Action<MutationState<TOutput>>> _deferredListeners = new();
         private MutationStatus _terminalStatus = MutationStatus.Idle;
         private bool _terminalHasData;
         private TOutput _terminalData;
@@ -113,9 +110,9 @@ namespace WakeQuery
         {
             AssertAvailable();
             var executions = new List<Execution>(_executions.Values);
-            for (int index = 0; index < executions.Count; index++)
+            foreach (var execution in executions)
             {
-                _client.RequestCancellation(executions[index].Cancellation);
+                _client.RequestCancellation(execution.Cancellation);
             }
         }
 
@@ -188,22 +185,25 @@ namespace WakeQuery
 
                     if (completed.IsFaulted)
                     {
-                        Exception exception =
-                            completed.Exception.InnerException ?? completed.Exception;
-                        if (exception is OperationCanceledException canceled)
+                        if (completed.Exception != null)
                         {
-                            _client.Post(
-                                () => CompleteCanceled(execution, canceled));
-                        }
-                        else
-                        {
-                            bool cancellationRequested =
-                                execution.Cancellation.IsCancellationRequested;
-                            _client.Post(
-                                () => CompleteFailure(
-                                    execution,
-                                    exception,
-                                    cancellationRequested));
+                            Exception exception =
+                                completed.Exception.InnerException ?? completed.Exception;
+                            if (exception is OperationCanceledException canceled)
+                            {
+                                _client.Post(
+                                    () => CompleteCanceled(execution, canceled));
+                            }
+                            else
+                            {
+                                bool cancellationRequested =
+                                    execution.Cancellation.IsCancellationRequested;
+                                _client.Post(
+                                    () => CompleteFailure(
+                                        execution,
+                                        exception,
+                                        cancellationRequested));
+                            }
                         }
 
                         return;
